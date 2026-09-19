@@ -900,6 +900,18 @@ static int spkr_calibrate(int t0_spk_1, int t0_spk_2)
     uc_info_rx->id = USECASE_AUDIO_SPKR_CALIB_RX;
     uc_info_rx->type = PCM_PLAYBACK;
     uc_info_rx->in_snd_device = SND_DEVICE_NONE;
+    /*
+     * Do not publish a PCM_PLAYBACK usecase with a NULL stream: anything that
+     * later routes this usecase dereferences stream.out. The WSA calibration
+     * thread already refuses to run when primary_output is NULL; do the same
+     * here instead of leaving a booby-trapped usecase on adev->usecase_list.
+     */
+    if (!adev->primary_output) {
+        ALOGD("%s: no primary output yet, skipping speaker calibration",
+              __func__);
+        free(uc_info_rx);
+        return -EAGAIN;
+    }
     uc_info_rx->stream.out = adev->primary_output;
     list_init(&uc_info_rx->device_list);
     if (fp_audio_extn_is_vbat_enabled())

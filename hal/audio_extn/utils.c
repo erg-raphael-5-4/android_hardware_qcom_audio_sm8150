@@ -905,6 +905,20 @@ void audio_extn_utils_update_stream_app_type_cfg_for_usecase(
 
     switch(usecase->type) {
     case PCM_PLAYBACK:
+        /*
+         * A PCM_PLAYBACK usecase does not necessarily own a stream. The
+         * speaker-protection calibration usecase takes its stream from
+         * adev->primary_output, which is NULL until a primary output is
+         * opened, and check_usecases_codec_backend() already guards
+         * usecase->stream.out for exactly this reason. Without this check the
+         * HAL takes a SIGSEGV here (fault addr = offsetof(stream_out, ...))
+         * and init kills audioserver with it.
+         */
+        if (!usecase->stream.out) {
+            ALOGD("%s: no output stream for usecase %d, skipping app type cfg",
+                  __func__, usecase->id);
+            break;
+        }
         audio_extn_utils_update_stream_output_app_type_cfg(adev->platform,
                                                 &adev->streams_output_cfg_list,
                                                 &usecase->stream.out->device_list,
@@ -918,6 +932,11 @@ void audio_extn_utils_update_stream_app_type_cfg_for_usecase(
         ALOGV("%s Selected apptype: %d", __func__, usecase->stream.out->app_type_cfg.app_type);
         break;
     case PCM_CAPTURE:
+        if (!usecase->stream.in) {
+            ALOGD("%s: no input stream for usecase %d, skipping app type cfg",
+                  __func__, usecase->id);
+            break;
+        }
         if (usecase->id == USECASE_AUDIO_RECORD_VOIP)
             usecase->stream.in->app_type_cfg.app_type = APP_TYPE_VOIP_AUDIO;
         else
